@@ -126,14 +126,6 @@ runtime\python.exe scripts\build_layer1_from_logs.py --data-root <利用者デ�
   **INCLUDE_SCRIPTS** に名前で列挙し、staging の `scripts/` に置く（今はこの1本）。置き場所を dev と同じにして手順を共通にしている
 - 検証済み（2026-09-08）: 本番と切り離した一時 data-root で 2026-02-17 の1日を flash で通し、DB 作成・境界設定・
   `memory/layer1.md` 描画・再実行時の続きからの再開を確認
-- **配布版の既定では summary_v2 は無効**（`dist_template/config/compression_config.json` の
-  `summary_v2.enabled: false`。0.1.12 で追加）。利用者は従来の Layer1/2（v1）で動く。dev（柚月）では 2026-09-08 に
-  v2 へ切り替えたが、名前ゲートや【予定】など日本語前提の処理が多く英語利用者で未検証のため、配布はまだ v1。
-  テンプレートには v2 用のプロンプト `compression_prompt_pass1.txt` / `pass2.txt`（例文は柚月固有の内容を
-  一般化し、`ご主人様` は `{{user_honorific}}` に置換済み）も置いてあるので、利用者が v2 を使うには
-  ①`summary_v2.enabled` を `true` に ②`config.yaml` の `boot_memories` に `memory/layer1.md` を足す、の2箇所で足りる。
-  上の `build_layer1_from_logs.py` はこのスイッチを入れた環境で意味を持つ。英語版テンプレート
-  （`dist_template/en/config/`）には pass1/pass2 の英訳をまだ置いていない（基底の日本語版が重なる）。
 
 ## 6. プライバシー / 秘密の扱い（大原則: 柚月の個人データ・APIキーを配布物に絶対入れない）
 - `build_dist.py`: `IGNORE` に `obc_state.json` を入れて同梱除外、`_assert_no_secrets()` の forbidden に

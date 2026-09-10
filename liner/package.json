@@ -1,6 +1,6 @@
 {
   "name": "crescent-liner",
-  "version": "0.1.12",
+  "version": "0.1.11",
   "description": "Crescent Grove 専用クライアントアプリ",
   "main": "out/main/index.js",
   "productName": "Crescent Grove",

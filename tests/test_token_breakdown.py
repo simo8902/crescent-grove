@@ -112,12 +112,11 @@ def test_raw_and_layer0_split():
     assert ctx.get_layer0_token_count() == b["layer0"]
 
 
-def test_stale_summary_view_not_counted():
-    """summary_v2 のビューは memory/layer1.md 経由で届くので、_summary_view に残った文字列は
-    送られない。送らないものは数えない（total は get_token_count と一致し続ける）。"""
+def test_summary_view_counted_separately():
+    """summary_v2 のビューは Layer1/2 と別枠。System には混ざらない。"""
     ctx = _make_ctx(_summary_view="【これまでの会話の要約】\n2026-08-01 …\n2026-08-02 …")
     b = ctx.get_token_breakdown()
-    assert "summary_view" not in b
+    assert b["summary_view"] == count_text_tokens(ctx._summary_view)
     assert b["system"] == (
         count_message_tokens({"role": "system", "content": ctx.system_top})
         + count_message_tokens({"role": "system", "content": ctx.system_memories})
@@ -130,11 +129,11 @@ def test_token_usage_carries_breakdown():
     ctx = _make_ctx(conversation_history=_history(), summary_layer1="要約")
     u = ctx.get_token_usage()
     for k in ("used", "max", "ratio", "system", "tools", "raw", "raw_turns",
-              "layer0", "layer0_turns", "layer1", "layer2", "other", "system_files"):
+              "layer0", "layer0_turns", "layer1", "layer2", "summary_view", "other"):
         assert k in u, k
     assert u["used"] == ctx.get_token_count()
     assert u["used"] == (u["system"] + u["tools"] + u["raw"] + u["layer0"]
-                         + u["layer1"] + u["layer2"] + u["other"])
+                         + u["layer1"] + u["layer2"] + u["summary_view"] + u["other"])
 
 
 def test_empty_history_first_message_is_assistant():
@@ -143,58 +142,6 @@ def test_empty_history_first_message_is_assistant():
     b = ctx.get_token_breakdown()
     assert b["raw"] == count_message_tokens(ctx.conversation_history[0])
     assert b["layer0"] == 0 and b["layer0_turns"] == 0
-
-
-
-def test_system_files_follow_config_order():
-    """システムプロンプトのファイル別内訳は、config の system_prompts → boot_memories の順に
-    ファイル名そのままで並ぶ（layer1.md 等の特別扱いは無い）。和は system と数トークン差。"""
-    import tempfile
-    from memory.manager import MemoryManager
-
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        (root / "prompts").mkdir()
-        (root / "prompts" / "TOP.md").write_text("{{agent_name}} への約束。", encoding="utf-8")
-        (root / "prompts" / "TOOLS.md").write_text("道具の説明。" * 5, encoding="utf-8")
-        ws = root / "workspace"
-        (ws / "memory").mkdir(parents=True)
-        (ws / "SOUL.md").write_text("私は{{agent_name}}。", encoding="utf-8")
-        (ws / "memory" / "layer1.md").write_text("2026-09-01 街へ行った。\n" * 30, encoding="utf-8")
-
-        ctx = _make_ctx()
-        ctx.config = {
-            "system_prompts": {"directory": str(root / "prompts"), "files": ["TOP.md", "TOOLS.md"]},
-            "boot_memories": ["SOUL.md", "memory/layer1.md", "missing.md"],
-            "profile": {"agent": {"name": "柚月"}, "user": {"honorific": "ご主人様"}},
-        }
-        ctx.memory = MemoryManager(str(ws))
-        ctx._rebuild_all()
-
-        names = [f["name"] for f in ctx.system_files]
-        assert names == ["TOP.md", "TOOLS.md", "SOUL.md", "memory/layer1.md", "missing.md"], names
-        # プレースホルダ置換後の本文を数えている（{{agent_name}} が残っていない）
-        assert "{{agent_name}}" not in ctx.system_top and "柚月" in ctx.system_top
-        assert "私は柚月。" in ctx.system_memories
-        # 結合結果は「従来の load_boot_memories → 置換」と同一（送る文字列を変えていない）
-        from core.config_loader import apply_prompt_placeholders
-        assert ctx.system_memories == apply_prompt_placeholders(
-            ctx.memory.load_boot_memories(ctx.config["boot_memories"]), "柚月", "ご主人様")
-        for f in ctx.system_files:
-            assert f["tokens"] > 0, f
-        b = ctx.get_token_breakdown()
-        assert b["system_files"] == ctx.system_files
-        assert b["system_files"] is not ctx.system_files  # 呼び出し側が壊せないようコピー
-        total_files = sum(f["tokens"] for f in b["system_files"])
-        # 本文の和 ≦ system（メッセージ overhead と区切りぶんだけ system が大きい）
-        assert total_files <= b["system"] < total_files + 40, (total_files, b["system"])
-        assert "system_files" in ctx.get_token_usage()
-
-
-def test_system_files_absent_when_built_without_init():
-    """__init__ を通さず組んだ ctx（既存テストの流儀）でも落ちず、空リストを返す。"""
-    ctx = _make_ctx()
-    assert ctx.get_token_breakdown()["system_files"] == []
 
 
 if __name__ == "__main__":

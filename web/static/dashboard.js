@@ -1180,20 +1180,16 @@ function buildContextHtml(data) {
     let html = `<div class="vital-section-title">${uiIcon('star')}${T.vital_context || 'Context'}</div>`;
     html += `<div class="vital-card vital-card-text">`;
     html += `<div>${uiIcon('yuzu')}${T.vital_total || 'Total'}: ${used} / ${max} (${pct}%)</div>`;
-    // システムプロンプト: 読み込んだファイルを送る順にそのまま並べる（config.yaml の
-    // system_prompts / boot_memories を映すだけ。layer1.md 等を特別扱いしない）。
-    // ファイル別の内訳（system_files）が届かない古いサーバでは合計行だけになる
-    html += `<div>${uiIcon('gear')}${T.vital_system_prompt || 'System prompt'}: ${fmt(tu.system)}</div>`;
-    for (const f of (tu.system_files || [])) {
-        html += `<div class="vital-subrow">${escapeHtml(f.name)}: ${fmt(f.tokens)}</div>`;
-    }
+    html += `<div>${uiIcon('gear')}System: ${fmt(tu.system)}</div>`;
     html += `<div>${uiIcon('wrench')}Tools: ${fmt(tu.tools)}</div>`;
     html += `<div>${uiIcon('raw')}Raw: ${fmt(tu.raw)} (${tu.raw_turns ?? 0} ${turns})</div>`;
     html += `<div>${uiIcon('layer0')}Layer0: ${fmt(tu.layer0)} (${tu.layer0_turns ?? 0} ${turns})</div>`;
-    // Layer1/2 は旧方式（v1）の会話要約。summary_v2 稼働中は要約が memory/layer1.md に
-    // 書き出されて上のファイル一覧に載るので、こちらは空。空の行は出さない
-    if (tu.layer1) html += `<div>${uiIcon('layer1')}Layer1: ${fmt(tu.layer1)}</div>`;
-    if (tu.layer2) html += `<div>${uiIcon('layer2')}Layer2: ${fmt(tu.layer2)}</div>`;
+    html += `<div>${uiIcon('layer1')}Layer1: ${fmt(tu.layer1)}</div>`;
+    html += `<div>${uiIcon('layer2')}Layer2: ${fmt(tu.layer2)}</div>`;
+    // summary_v2 のビュー（日単位要約）。稼働していない間は 0 なので行ごと出さない
+    if (tu.summary_view) {
+        html += `<div>${uiIcon('layer2')}${T.vital_summary_view || 'Summary'}: ${fmt(tu.summary_view)}</div>`;
+    }
     html += `</div>`;
     return html;
 }

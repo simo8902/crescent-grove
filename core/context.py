@@ -53,16 +53,21 @@ from core.weather import get_weather_string
 JST = timezone(timedelta(hours=9))
 
 
-def _load_prompt_parts(config_section: dict) -> list[tuple[str, str]]:
+def _load_prompt_files(config_section: dict) -> str:
     """
-    config.yaml のプロンプトセクションで指定されたファイル群を読み込み、
-    (ファイル名, 中身) の並びで返す。見つからないファイルは警告して飛ばす。
+    config.yaml のプロンプトセクションで指定されたファイル群を読み込んで結合する。
 
-    _load_prompt_files（結合文字列）と get_token_breakdown（ファイル別トークン数）の
-    両方がここを通ることで、送った中身と数えた中身が一致する。
+    system_prompts（最上部プロンプト）と post_prompts（最下部プロンプト）の
+    両方で使われる共通関数。
+
+    Args:
+        config_section: {"directory": "ディレクトリパス", "files": ["file1.md", "file2.md", ...]}
+
+    Returns:
+        全ファイルの内容を改行2つで結合した文字列。設定がない場合は空文字。
     """
     if not config_section:
-        return []
+        return ""
 
     # ディレクトリの基準点を CWD から data_root に変更（配布対応）。
     # 設定値が絶対パスならそのまま使い、相対パスなら data_root 基準で解決する。
@@ -78,33 +83,17 @@ def _load_prompt_parts(config_section: dict) -> list[tuple[str, str]]:
 
     if not directory.exists():
         print(f"警告: プロンプトディレクトリが見つかりません: {directory}")
-        return []
+        return ""
 
     parts = []
     for filename in files:
         filepath = directory / filename
         if filepath.exists():
-            parts.append((filename, filepath.read_text(encoding="utf-8")))
+            parts.append(filepath.read_text(encoding="utf-8"))
         else:
             print(f"警告: プロンプトファイルが見つかりません: {filepath}")
 
-    return parts
-
-
-def _load_prompt_files(config_section: dict) -> str:
-    """
-    config.yaml のプロンプトセクションで指定されたファイル群を読み込んで結合する。
-
-    system_prompts（最上部プロンプト）と post_prompts（最下部プロンプト）の
-    両方で使われる共通関数。
-
-    Args:
-        config_section: {"directory": "ディレクトリパス", "files": ["file1.md", "file2.md", ...]}
-
-    Returns:
-        全ファイルの内容を改行2つで結合した文字列。設定がない場合は空文字。
-    """
-    return "\n\n".join(content for _, content in _load_prompt_parts(config_section))
+    return "\n\n".join(parts)
 
 
 class ContextBuilder:
@@ -170,7 +159,9 @@ class ContextBuilder:
     def _rebuild_all(self):
         """システムプロンプトと起動時記憶を（再）構築する。reload_memories()から呼ばれる。"""
         # 最上部プロンプト: TOP_PROMPT.md, TOOL_INSTRUCTIONS.md, SAFETY_PROMPT.md 等
-        top_parts = _load_prompt_parts(self.config.get("system_prompts"))
+        top_prompts = _load_prompt_files(self.config.get("system_prompts"))
+
+        self.system_top = top_prompts
 
         # 最下部プロンプト（BOTTOM_PROMPT.md 等）: post_prompts.enabled が True のときだけ、
         # 会話履歴の後（真・最下部）に配置する。エキスパート向け機能。
@@ -180,36 +171,21 @@ class ContextBuilder:
         # 実際の挿入は build_messages() で履歴の後・prefillの前に毎ターン行う（履歴には保存しない）。
         post_config = self.config.get("post_prompts") or {}
         if post_config.get("enabled", False):
-            post_parts = _load_prompt_parts(post_config)
+            self.system_bottom = _load_prompt_files(post_config)
         else:
-            post_parts = []
+            self.system_bottom = ""
 
-        # 起動時記憶: IDENTITY.md, SOUL.md, USER.md, MEMORY.md, compressed.md, layer1.md 等。
-        # どれも config.yaml の boot_memories に並んだファイルの1つに過ぎず、ここでは区別しない
+        # 起動時記憶: IDENTITY.md, SOUL.md, USER.md, MEMORY.md, compressed.md, letter_for_me.md 等
         boot_files = self.config.get("boot_memories", [])
-        boot_parts = self.memory.load_boot_memory_parts(boot_files) if boot_files else []
+        self.system_memories = self.memory.load_boot_memories(boot_files) if boot_files else ""
 
         # 全プロンプト共通のプレースホルダ（{{agent_name}} / {{user_honorific}}）を実際の値に置換する。
         # 値は settings.json優先・config.yamlフォールバック（load_config()でマージ済み）。
-        # ファイル単位で置換してから結合する（置換は局所的なので、結合後に置換するのと同じ文字列になる）
         from core.config_loader import apply_prompt_placeholders
         agent_name = self.config.get("profile", {}).get("agent", {}).get("name", "Assistant")
         honorific = self.config.get("profile", {}).get("user", {}).get("honorific", "ユーザー")
-        top_parts = [(n, apply_prompt_placeholders(c, agent_name, honorific)) for n, c in top_parts]
-        boot_parts = [(n, apply_prompt_placeholders(c, agent_name, honorific)) for n, c in boot_parts]
-
-        self.system_top = "\n\n".join(c for _, c in top_parts)
-        self.system_bottom = "\n\n".join(c for _, c in post_parts)
-        self.system_memories = "\n\n".join(c for _, c in boot_parts)
-
-        # 体調タブ用: システムプロンプトを構成するファイルごとのトークン数（送る順）。
-        # プロンプトも記憶ファイルも「システムプロンプトに読み込むファイル」として同じ列に並べる。
-        # 本文だけを数えるので、和は get_token_breakdown()["system"]（メッセージ overhead 込み）より
-        # 数トークン少ない。読み込みは reload_memories() のときだけなので毎ターンの計測コストは無い
-        self.system_files = [
-            {"name": name, "tokens": count_text_tokens(content)}
-            for name, content in top_parts + boot_parts + post_parts
-        ]
+        self.system_top = apply_prompt_placeholders(self.system_top, agent_name, honorific)
+        self.system_memories = apply_prompt_placeholders(self.system_memories, agent_name, honorific)
 
     def _get_context_tz(self):
         """コンテキストに注入する時刻表示用の (tzinfo, ラベル) を設定から返す。
@@ -793,14 +769,11 @@ class ContextBuilder:
         - system:       TOP プロンプト＋起動時記憶＋BOTTOM プロンプト。**会話要約は含まない**
                         （以前は要約 system メッセージまで System に足していたため、Layer1/2 が
                         二重に数えられ、逆算していた Raw がその分だけ小さく出ていた）
-        - system_files: system を構成するファイルごとの内訳 [{"name", "tokens"}, ...]（送る順）。
-                        本文だけを数えるので和は system より数トークン少ない
         - tools:        ツール定義
         - raw:          会話履歴のうち Layer0 未圧縮のメッセージ（tool 呼び出し・結果も含む）
         - layer0:       Layer0 圧縮済みペア（<!-- layer0 --> 付き user と、それに続くメッセージ）
         - layer1/2:     v1 要約の本文
-        （summary_v2 のビューは 2026-09-07 から memory/layer1.md に書き出して boot_memories で
-          読むので、system_files の1行として現れる。別枠では数えない）
+        - summary_view: summary_v2 のビュー本文
         - other:        要約メッセージの見出し・区切り・メッセージ overhead と DeepSeek prefill
                         （数トークン〜十数トークン）
         """
@@ -812,11 +785,12 @@ class ContextBuilder:
 
         layer1 = self.get_layer1_token_count()
         layer2 = self.get_layer2_token_count()
+        summary_view = self.get_summary_view_token_count()
         other = 0
         summary_content = self._build_summary_content()
         if summary_content:
             other += count_message_tokens({"role": "system", "content": summary_content}) \
-                     - layer1 - layer2
+                     - layer1 - layer2 - summary_view
         if self._pending_prefill:
             other += count_message_tokens(
                 {"role": "assistant", "content": self._pending_prefill, "prefix": True})
@@ -842,8 +816,6 @@ class ContextBuilder:
         tools = self.tools_tokens
         return {
             "system": system,
-            # テスト等で __init__ を通さずに組んだ場合は空リスト
-            "system_files": list(getattr(self, "system_files", []) or []),
             "tools": tools,
             "raw": raw,
             "raw_turns": self.count_uncompressed_turns(),
@@ -851,8 +823,9 @@ class ContextBuilder:
             "layer0_turns": layer0_turns,
             "layer1": layer1,
             "layer2": layer2,
+            "summary_view": summary_view,
             "other": other,
-            "total": system + tools + raw + layer0 + layer1 + layer2 + other,
+            "total": system + tools + raw + layer0 + layer1 + layer2 + summary_view + other,
         }
 
     def get_token_usage(self) -> dict:
@@ -860,7 +833,7 @@ class ContextBuilder:
         トークン使用状況を辞書で返す（UI表示・判定用）。
 
         used は get_token_breakdown() の合計（= get_token_count() と同値）。
-        内訳（system / system_files / tools / raw / layer0 / layer1 / layer2 / other）も
+        内訳（system / tools / raw / layer0 / layer1 / layer2 / summary_view / other）も
         そのまま同梱し、UI 側で引き算をさせない。
 
         Returns:
@@ -873,7 +846,6 @@ class ContextBuilder:
             "max": self.max_tokens,
             "ratio": used / self.max_tokens if self.max_tokens > 0 else 0,
             "system": b["system"],
-            "system_files": b["system_files"],
             "tools": b["tools"],
             "raw": b["raw"],
             "raw_turns": b["raw_turns"],
@@ -881,6 +853,7 @@ class ContextBuilder:
             "layer0_turns": b["layer0_turns"],
             "layer1": b["layer1"],
             "layer2": b["layer2"],
+            "summary_view": b["summary_view"],
             "other": b["other"],
         }
 

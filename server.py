@@ -118,7 +118,14 @@ app = FastAPI(title="Crescent Grove", lifespan=lifespan)
 # =============================================================================
 
 # ミドルウェアによる認証チェックを免除するパスの集合
-_AUTH_EXCLUDE_PATHS = {"/login", "/api/auth/status", "/api/auth/setup", "/api/auth/login"}
+_AUTH_EXCLUDE_PATHS = {
+    "/login",
+    "/api/auth/status",
+    "/api/auth/setup",
+    "/api/auth/login",
+    "/api/personality/prepare",
+    "/api/personality/commit",
+}
 
 class AuthMiddleware(BaseHTTPMiddleware):
     """全HTTPリクエストに対してセッションCookieを検証し、未認証なら/loginへリダイレクトする。"""
@@ -154,6 +161,7 @@ from core.routes import logs as routes_logs
 from core.routes import settings_api as routes_settings_api
 from core.routes import dashboard_api as routes_dashboard_api
 from core.routes import ws as routes_ws
+from core.routes import personality_api as routes_personality_api
 
 app.include_router(routes_auth.router)
 app.include_router(routes_pages.router)
@@ -161,6 +169,7 @@ app.include_router(routes_logs.router)
 app.include_router(routes_dashboard_api.router)
 app.include_router(routes_settings_api.router)
 app.include_router(routes_ws.router)
+app.include_router(routes_personality_api.router)
 
 
 # =============================================================================

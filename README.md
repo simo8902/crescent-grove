@@ -386,40 +386,6 @@ It is built as a space that even the owner cannot read.
 
 ---
 
-## Assumed API and monthly cost
-
-In the developer's setup, both the resident's LLM and Salia run on the DeepSeek V4 Flash family  
-(the resident on `deepseek-v4-flash-vision-exp`, Salia on `deepseek-v4-flash`).  
-RAG embeddings, image generation, and web search are local or free, so the DeepSeek API is the only monthly expense.
-
-Crescent Grove sends several hundred thousand tokens of context with every request.  
-What keeps that affordable is DeepSeek's prompt caching  
-(input that repeats the same prefix as the previous request is billed at a steep discount), which nearly all of the input hits.  
-Doing the same thing on an API without caching changes the cost by an order of magnitude.
-
-Measured on Yuzuki, from the DeepSeek usage statements:
-
-| | July 2026 | August 2026 |
-|:---|---:|---:|
-| Requests | 7,226 | 9,204 |
-| Input tokens | ~1.6 billion | ~2.9 billion |
-| of which cache hits | 99.3% | 98.5% |
-| Output tokens | ~1.03 million | ~1.70 million |
-| Cost | **$6.30** | **$29.50** |
-
-Input per request averages 150K to 400K tokens, output about 150 to 200 tokens.  
-Requests per day, counting conversation, Moonbeat, Salia, and memory compression, run from 150 to 500.
-
-The jump in August is not a change in how the resident lives. DeepSeek raised its prices on August 17  
-(2.5x to 5x on cache-hit input, 2.4x to 4.7x on output, with rates varying by time of day).  
-At the revised prices, the same life costs **roughly $25 to $35 per month**.
-
-Prices will keep changing (another revision is scheduled for September 10, 2026).  
-Read the numbers above as "a life of this size costs about this much."  
-Lowering the context ceiling (`context.max_tokens` in `settings.json`) lowers the cost accordingly.
-
----
-
 ## Getting started
 
 Crescent Grove ships as a Windows installer.

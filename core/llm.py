@@ -561,9 +561,8 @@ def apply_thinking(kwargs: dict, provider: str, model: str, level: str) -> None:
     elif is_effort:
         # OpenAI/Gemini/Grok は reasoning_effort をそのまま。off は none。
         kwargs["reasoning_effort"] = "none" if lvl == "off" else lvl
-    else:
-        # local/lmstudio/ollama/custom 等は対応が読めないので何も送らない（auto と同等）。
-        return
+    elif lvl == "off":
+        kwargs["reasoning_effort"] = "none"
 
 
 # --- ファクトリー関数 ---

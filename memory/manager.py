@@ -196,23 +196,6 @@ class MemoryManager:
                     result.append(f"{rel} ({item.stat().st_size}B, {mtime})")
         return result
         
-    def load_boot_memory_parts(self, boot_files: list[str]) -> list[tuple[str, str]]:
-        """
-        起動時の記憶読み込み。config.yaml の boot_memories に指定された
-        ファイルを順番に読み込み、(相対パス, 見出し付きの本文) の並びで返す。
-
-        ContextBuilder はこれを結合してシステムプロンプトに載せ、
-        体調タブ向けにファイルごとのトークン数も数える。
-        """
-        parts = []
-        for file_path in boot_files:
-            content = self.read_file(file_path)
-            if content:
-                parts.append((file_path, f"=== {file_path} ===\n{content}"))
-            else:
-                parts.append((file_path, f"=== {file_path} ===\n（ファイルが見つかりません）"))
-        return parts
-
     def load_boot_memories(self, boot_files: list[str]) -> str:
         """
         起動時の記憶読み込み。config.yaml の boot_memories に指定された
@@ -224,4 +207,12 @@ class MemoryManager:
         Returns:
             全ファイルの内容を結合した文字列
         """
-        return "\n\n".join(block for _, block in self.load_boot_memory_parts(boot_files))
+        parts = []
+        for file_path in boot_files:
+            content = self.read_file(file_path)
+            if content:
+                parts.append(f"=== {file_path} ===\n{content}")
+            else:
+                parts.append(f"=== {file_path} ===\n（ファイルが見つかりません）")
+        
+        return "\n\n".join(parts)
