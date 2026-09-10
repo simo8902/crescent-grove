@@ -1,0 +1,47 @@
+mcp:
+  servers:
+    everything:
+      protocol_mode: legacy
+      command: cmd
+      args:
+      - /c
+      - npx
+      - -y
+      - '@quickerhub/everything-mcp'
+    filesystem:
+      protocol_mode: legacy
+      command: cmd
+      args:
+      - /c
+      - npx
+      - -y
+      - '@modelcontextprotocol/server-filesystem'
+      - C:\Users\Simeon\Documents
+      cwd: C:\Users\Simeon\Documents\cpp dist packages\fast-agent
+      read_timeout_seconds: 60
+    jcodemunch:
+      protocol_mode: legacy
+      command: uvx
+      args:
+      - --from
+      - C:\Users\Simeon\Documents\cpp dist packages\jcodemunch_mcp-1.108.301-py3-none-any.whl
+      - jcodemunch-mcp
+      cwd: C:\Users\Simeon\Documents\cpp dist packages\fast-agent
+    patchloom:
+      command: C:\Users\Simeon\Documents\cpp dist packages\patchloom.exe
+      args:
+      - mcp-server
+      cwd: C:\Users\Simeon\Documents\cpp dist packages\fast-agent
+      env:
+        PATCHLOOM_MCP_SURFACE: core
+      protocol_mode: legacy
+      read_timeout_seconds: 120
+    cartog:
+      command: C:\Users\Simeon\Documents\cpp dist packages\cartog.exe
+      args:
+      - serve
+      cwd: C:\Users\Simeon\Documents\cpp dist packages\fast-agent
+      protocol_mode: legacy
+      read_timeout_seconds: 120
+openresponses:
+  reasoning: medium
