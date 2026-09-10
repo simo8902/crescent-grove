@@ -143,6 +143,6 @@ runpy.run_module("fast_agent.cli", run_name="__main__")
 }
 
 # These names must match the keys in fast-agent.yaml.
-$mcpServers = 'everything,filesystem,jcodemunch,patchloom,cartog'
+# $mcpServers = 'everything,filesystem,jcodemunch,patchloom,cartog'
 
 Invoke-FastAgent

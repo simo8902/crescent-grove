@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from vital.cost_tracker import CostTracker
 from vital.token_tracker import TokenTracker
 from core.time_utils import get_logical_date, JST
+from core.config_loader import load_config
 
 # vital.json 等のパスは data_root 基準で「遅延解決」する。
 # モジュール import 時に定数で固定すると set_data_root() より前にパスが確定し、
@@ -95,6 +96,12 @@ class VitalManager:
                     str(data_dir / "mood_transition_matrix.csv")
                 )
                 inner_texts = load_inner_texts(str(data_dir / "moontide_inner.jsonl"))
+                if load_config().get("language") == "en":
+                    for label, texts in inner_texts.items():
+                        display_name = label.replace("_", " ").title()
+                        texts["name"] = display_name
+                        for intensity in range(1, 5):
+                            texts[intensity] = f"(I feel {display_name.lower()}; intensity {intensity}.)"
                 params = load_config(str(config_path))
 
                 # 気分システムのオンオフ。moontide_v2_config.json の "enabled" が false の場合、
@@ -304,8 +311,10 @@ class VitalManager:
             last_time = datetime.fromisoformat(last)
         except (ValueError, TypeError):
             return
+        if last_time.tzinfo is None:
+            last_time = last_time.replace(tzinfo=JST)
 
-        now = datetime.now()
+        now = datetime.now(JST)
         elapsed_hours = (now - last_time).total_seconds() / 3600.0
         recovery_hours = int(elapsed_hours)
 
@@ -436,7 +445,7 @@ class VitalManager:
             tlog(f"[VitalManager] today.md記録失敗: {e}")
 
         # タイムスタンプ更新と保存
-        self.data["last_updated"] = datetime.now().isoformat()
+        self.data["last_updated"] = datetime.now(JST).isoformat()
         self._save()
 
     def update_mental(self, delta: int):
@@ -447,7 +456,7 @@ class VitalManager:
         """
         current = self.data.get("mental", 100)
         self.data["mental"] = max(0, min(100, current + delta))
-        self.data["last_updated"] = datetime.now().isoformat()
+        self.data["last_updated"] = datetime.now(JST).isoformat()
         self._save()
         tlog(f"[VitalManager] mental 更新: {current} → {self.data['mental']} (delta: {delta:+d})")
 

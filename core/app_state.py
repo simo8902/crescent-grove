@@ -119,7 +119,10 @@ def reload_runtime_config() -> bool:
     # time_utils はモジュール変数で保持しているためここで明示的に更新する。
     try:
         from core.time_utils import set_context_timezone
-        set_context_timezone(new_config.get("time", {}).get("tz_offset", 9))
+        set_context_timezone(
+            new_config.get("time", {}).get("tz_offset", 9),
+            new_config.get("time", {}).get("tz_name"),
+        )
     except Exception as e:
         print(f"警告: reload_runtime_config のタイムゾーン追従に失敗しました: {e}")
 

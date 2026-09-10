@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta, date as date_type
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import os
 from pathlib import Path
 
@@ -9,26 +10,26 @@ JST = timezone(timedelta(hours=9))
 # （app_state.reload_runtime_config）に set_context_timezone() で更新される。
 # コンテキストに注入する時刻表示（context.py）とこの論理日付が同じタイムゾーンで動く。
 # ※ tlog() のログ記録時刻・日付別ログファイル名は従来どおり JST 固定（運用ログの一貫性のため）。
-_context_tz_offset_hours = 9.0
+_context_timezone = JST
 
 
-def set_context_timezone(offset_hours):
-    """論理日付（午前3時境界）に使うタイムゾーンのオフセット（時間単位）を設定する。
-
-    一般設定 time.tz_offset に追従させるため、起動時と設定保存時に呼ばれる。
-    不正値・範囲外（UTC-12〜+14外）は JST(+9) に丸める。
-    """
-    global _context_tz_offset_hours
+def set_context_timezone(offset_hours=9, tz_name=None):
+    global _context_timezone
+    if isinstance(tz_name, str) and tz_name.strip():
+        try:
+            _context_timezone = ZoneInfo(tz_name.strip())
+            return
+        except ZoneInfoNotFoundError:
+            pass
     try:
         off = float(offset_hours)
     except (TypeError, ValueError):
         off = 9.0
-    _context_tz_offset_hours = max(-12.0, min(14.0, off))
+    _context_timezone = timezone(timedelta(hours=max(-12.0, min(14.0, off))))
 
 
-def _logical_tz() -> timezone:
-    """論理日付の計算に使う現在のタイムゾーンを返す（set_context_timezone で可変）。"""
-    return timezone(timedelta(hours=_context_tz_offset_hours))
+def _logical_tz():
+    return _context_timezone
 
 
 def _console_log_dir() -> Path:

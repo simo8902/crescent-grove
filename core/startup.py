@@ -56,7 +56,10 @@ async def startup_event():
     # --- タイムゾーンの初期化 ---
     # 論理日付（午前3時境界）を一般設定 time.tz_offset に追従させる（既定 JST）。
     # コンテキストに注入する時刻表示（context.py）と同じタイムゾーンで「1日の区切り」が動く。
-    set_context_timezone(config.get("time", {}).get("tz_offset", 9))
+    set_context_timezone(
+        config.get("time", {}).get("tz_offset", 9),
+        config.get("time", {}).get("tz_name"),
+    )
 
     # --- 外部バインド時のセキュリティガード（server.py __main__ を通らない起動経路の保険） ---
     # host が 127.0.0.1 以外（0.0.0.0 等で外部からアクセス可能）なのにパスワード未設定だと、
